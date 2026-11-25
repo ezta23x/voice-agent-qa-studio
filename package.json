@@ -1,0 +1,14 @@
+{
+  "name": "voice-agent-qa-studio",
+  "version": "1.1.0",
+  "description": "First-principles, low-effort Voice Agent QA & Multimodal Audio Evaluation Studio powered by Gemini Flash",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/app.mjs",
+    "evaluate": "node --env-file-if-exists=.env src/evaluator.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.50.0"
+  }
+}

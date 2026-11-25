@@ -1,0 +1,15 @@
+# Secrets & local environment
+.env
+.env.local
+
+# Dependencies
+node_modules/
+
+# Runtime browser profile & test outputs
+chrome_profile/
+results/*
+!results/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db

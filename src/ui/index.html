@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice Agent QA Studio - 语音智能体评测与人工质检工作台</title>
+  <style>
+    :root {
+      --bg:#f5f7fb; --card:#ffffff; --border:#e2e8f0; --text:#0f172a; --muted:#64748b;
+      --accent:#4f46e5; --accent-hover:#4338ca; --red:#dc2626; --red-bg:#fef2f2;
+      --yellow:#b45309; --yellow-bg:#fffbeb; --green:#047857; --green-bg:#ecfdf5;
+    }
+    * { box-sizing:border-box; }
+    html, body { height:100%; margin:0; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); }
+    .shell { display:flex; flex-direction:column; height:100vh; width:100vw; }
+    header {
+      background:var(--card); border-bottom:1px solid var(--border); padding:7px 12px;
+      display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; flex-shrink:0;
+    }
+    .brand { display:flex; align-items:center; gap:7px; font-weight:700; font-size:13.5px; letter-spacing:-0.01em; }
+    .pill { font-size:11px; padding:2px 7px; border-radius:999px; background:#eef2ff; color:var(--accent); font-weight:600; }
+    .split { display:flex; flex:1; min-height:0; overflow:hidden; }
+    .left { width:67%; min-width:260px; display:flex; flex-direction:column; background:#0f172a; border-right:1px solid var(--border); min-height:0; }
+    .resizer { width:6px; cursor:col-resize; background:#e2e8f0; flex-shrink:0; transition:background .15s; }
+    .resizer:hover, .resizer.dragging { background:var(--accent); }
+    .right { flex:1; min-width:300px; display:flex; flex-direction:column; background:var(--card); min-height:0; overflow:hidden; }
+
+    .mirror-bar {
+      background:#1e293b; color:#e2e8f0; padding:5px 9px; display:flex; align-items:center; gap:5px; flex-wrap:wrap; font-size:11.5px; flex-shrink:0;
+    }
+    .m-btn { background:#334155; color:#f8fafc; border:1px solid #475569; border-radius:5px; padding:3px 8px; font-size:11.5px; cursor:pointer; }
+    .m-btn:hover { background:#475569; }
+    .m-btn.active { background:var(--accent); border-color:var(--accent); }
+    .m-url { color:#94a3b8; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px; }
+    .stage { flex:1; position:relative; overflow:auto; background:#0b1120; display:flex; align-items:flex-start; justify-content:flex-start; }
+    .stage.fit-mode { overflow:hidden; align-items:center; justify-content:center; padding:6px; }
+    .stage.click-mode { cursor:crosshair; }
+    .stage.pan-mode { cursor:grab; }
+    .stage.pan-mode:active { cursor:grabbing; }
+    .stage-inner { position:relative; padding:8px; }
+    .stage.fit-mode .stage-inner { width:100%; height:100%; padding:0; display:flex; align-items:center; justify-content:center; }
+    #mirrorCanvas { display:block; border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.45); user-select:none; }
+    .stage.fit-mode #mirrorCanvas { max-width:100%; max-height:100%; width:auto !important; height:auto !important; object-fit:contain; }
+    .empty-stage { color:#94a3b8; padding:22px; font-size:12.5px; line-height:1.7; }
+
+    select, button, input[type="number"], input[type="text"], input[type="password"], textarea {
+      font-size:12px; border-radius:6px; border:1px solid var(--border); padding:4px 8px; background:#fff; color:var(--text);
+    }
+    button { cursor:pointer; }
+    button.primary { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
+    button.primary:hover { background:var(--accent-hover); }
+    button.warn { background:var(--yellow-bg); color:var(--yellow); border-color:#fcd34d; font-weight:600; }
+    button.danger { background:var(--red-bg); color:var(--red); border-color:#fecaca; font-weight:600; }
+    button.ok { background:var(--green-bg); color:var(--green); border-color:#a7f3d0; font-weight:600; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .check-label { font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:4px; cursor:pointer; }
+    .top-nav { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+    .tab, .top-btn { padding:4px 10px; border:1px solid var(--border); border-radius:6px; background:#fff; color:var(--text); font-weight:600; font-size:12px; line-height:1.4; }
+    .tab:hover, .top-btn:hover { background:#f8fafc; }
+    .tab.active { color:var(--accent); border-color:var(--accent); background:#eef2ff; }
+    .ctrl-bar { display:flex; flex-direction:column; gap:5px; padding:6px 10px; border-bottom:1px solid var(--border); background:#f8fafc; flex-shrink:0; }
+    .ctrl-row { display:flex; align-items:center; gap:5px; flex-wrap:nowrap; }
+    .ctrl-row select { flex:1; min-width:0; }
+    .ctrl-row button { white-space:nowrap; }
+    .body { flex:1; overflow:auto; padding:10px; min-height:0; }
+    .field { margin-bottom:9px; }
+    .field label { display:block; font-size:11.5px; font-weight:600; margin-bottom:3px; color:#334155; }
+    .field input[type="text"], .field input[type="password"], .field select { width:100%; }
+    .field-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+
+    .card { border:1px solid var(--border); border-radius:9px; padding:9px 11px; margin-bottom:9px; background:#fcfcfd; }
+    .card-head { display:flex; justify-content:space-between; align-items:center; gap:6px; font-size:12px; font-weight:600; margin-bottom:6px; flex-wrap:wrap; }
+    .bubble { padding:6px 9px; border-radius:7px; font-size:12px; margin:4px 0; line-height:1.45; white-space:pre-wrap; word-break:break-word; }
+    .bubble.u { background:#eef2ff; border-left:3px solid var(--accent); }
+    .bubble.asr { background:#fffbeb; border-left:3px solid #f59e0b; }
+    .bubble.a { background:#f0fdf4; border-left:3px solid var(--green); }
+    audio { width:100%; height:28px; margin-top:4px; }
+    video { width:100%; max-height:260px; border-radius:8px; background:#000; margin-top:6px; }
+
+    /* Ergonomic 1-click human review panel */
+    .review-box { margin-top:7px; padding:8px 9px; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; }
+    .score-row { display:flex; align-items:center; gap:4px; flex-wrap:wrap; margin-bottom:6px; }
+    .s-btn { min-width:30px; padding:3px 7px; font-size:11.5px; font-weight:700; border-radius:6px; border:1px solid #cbd5e1; background:#fff; color:#334155; }
+    .s-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .s-btn.s-good.active { background:var(--green); border-color:var(--green); }
+    .s-btn.s-bad.active { background:var(--red); border-color:var(--red); }
+    .chip-wrap { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
+    .chip { padding:2px 7px; font-size:11px; border-radius:999px; border:1px solid #cbd5e1; background:#fff; color:#475569; cursor:pointer; user-select:none; }
+    .chip.active { background:var(--red-bg); color:var(--red); border-color:#fca5a5; font-weight:600; }
+    .note-row { display:flex; gap:5px; align-items:center; }
+    .note-row input { flex:1; font-size:11.5px; padding:4px 7px; }
+    .save-tag { font-size:11px; color:var(--green); font-weight:600; }
+
+    .score-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(85px, 1fr)); gap:6px; margin-bottom:10px; }
+    .kpi { border:1px solid var(--border); border-radius:8px; padding:7px; text-align:center; background:#f8fafc; }
+    .kpi .v { font-size:18px; font-weight:700; color:var(--accent); }
+    .kpi .l { font-size:10.5px; color:var(--muted); margin-top:2px; }
+    .report-row { display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border); border-radius:8px; padding:7px 9px; background:#fcfcfd; gap:6px; flex-wrap:wrap; }
+    .right.md-fullscreen .ctrl-bar, .right.md-fullscreen .manual-note-bar, .right.md-fullscreen .log-bar { display:none !important; }
+    .right.md-fullscreen #pane-reports { display:flex !important; flex-direction:column; padding:0; overflow:hidden; }
+    .md-reader-wrap { display:none; flex-direction:column; flex:1; min-height:0; height:100%; }
+    .md-reader-bar { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border); background:#f8fafc; flex-shrink:0; flex-wrap:wrap; }
+    .md-view { flex:1; min-height:0; margin:0; white-space:pre-wrap; word-break:break-word; background:#f8fafc; padding:14px; font-size:11.5px; line-height:1.6; font-family:ui-monospace,Menlo,monospace; overflow:auto; }
+    .md-rendered { flex:1; min-height:0; background:#ffffff; padding:14px 16px; font-size:12.5px; line-height:1.65; overflow:auto; }
+    .md-rendered h1 { font-size:16px; margin:0 0 8px; border-bottom:1px solid var(--border); padding-bottom:5px; }
+    .md-rendered h2 { font-size:13.5px; margin:14px 0 6px; color:var(--accent); }
+    .md-rendered table { width:100%; border-collapse:collapse; font-size:11.5px; margin:6px 0 10px; }
+    .md-rendered th, .md-rendered td { border:1px solid var(--border); padding:5px 7px; text-align:left; vertical-align:top; }
+    .md-rendered th { background:#f8fafc; font-weight:600; }
+    .md-rendered code { background:#f1f5f9; padding:1px 4px; border-radius:4px; font-family:ui-monospace,Menlo,monospace; font-size:11px; }
+    .prompt-box { width:100%; min-height:120px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; line-height:1.5; resize:vertical; }
+    .manual-note-bar { display:flex; align-items:center; gap:6px; padding:6px 10px; border-top:1px solid var(--border); background:#f8fafc; flex-shrink:0; }
+    .manual-note-bar input { flex:1; font-size:12px; padding:5px 8px; }
+    .log-bar { height:88px; border-top:1px solid var(--border); background:#0b1020; color:#cbd5e1; font-family:ui-monospace,Menlo,monospace; font-size:11px; padding:6px 9px; overflow:auto; flex-shrink:0; }
+    .log-warn { color:#fbbf24; }
+    .log-error { color:#f87171; }
+    .muted { font-size:11.5px; color:var(--muted); }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="brand">
+      <span>Voice Agent QA Studio</span>
+      <span id="modelPill" class="pill">人工质检工作台</span>
+    </div>
+    <div class="top-nav">
+      <button class="tab active" data-tab="live">实时通话与快速评分</button>
+      <button class="tab" data-tab="review">本场总览与录屏</button>
+      <button class="tab" data-tab="reports">历史记录与报告</button>
+      <button class="tab" data-tab="prompt">提示词</button>
+      <button class="tab" data-tab="settings">系统设置</button>
+      <button id="btnSaveVideo" class="top-btn" disabled title="按需将最近一场通话的临时画面帧合成 MP4 写入 results/（不点则自动清理，避免占用空间）">保存完整录屏</button>
+      <button id="btnOpenDir" class="top-btn" title="打开本地评测产物输出目录 results/">打开结果目录</button>
+    </div>
+  </header>
+
+  <div class="split">
+    <section class="left" id="leftPane">
+      <div class="mirror-bar">
+        <button id="btnClick" class="m-btn active" title="点击画面直接操作被测页面">交互模式</button>
+        <button id="btnPan" class="m-btn" title="按住鼠标左键上下左右拖拽画面">拖拽视图</button>
+        <button id="btnFit" class="m-btn active" title="画面自动适应当前窗口尺寸">自适应</button>
+        <input id="zoomRange" type="range" min="35" max="150" value="100" style="width:70px;" />
+        <span id="zoomTxt">自适应</span>
+        <button id="btnReload" class="m-btn">刷新页面</button>
+        <button id="btnFocus" class="m-btn">切换至被测窗口</button>
+        <span id="urlTxt" class="m-url">正在连接被测页面...</span>
+      </div>
+      <div class="stage click-mode fit-mode" id="stage">
+        <div class="stage-inner">
+          <canvas id="mirrorCanvas" style="display:none;"></canvas>
+          <div id="stageEmpty" class="empty-stage">
+            <b>被测页面实时视图（已锁定防弹出新窗口）</b><br/>
+            • 所有内部弹窗与新标签链接均已自动锁定在此视图内打开。<br/>
+            • 通话期间自动留存逐轮双向音频，测试后可按需点击顶栏「保存完整录屏」导出 <code>session_recording.mp4</code>。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="resizer" id="resizer" title="左右拖拽调整分栏比例"></div>
+
+    <section class="right" id="rightPane">
+      <div class="ctrl-bar">
+        <div class="ctrl-row">
+          <select id="scSelect"></select>
+          <label class="check-label" style="white-space:nowrap;">轮次<input id="maxTurns" type="number" min="2" max="20" value="12" style="width:44px;padding:3px 5px;" />轮</label>
+          <label class="check-label" style="white-space:nowrap;" title="为模拟用户语音实时叠加 300–3400Hz 电话窄带滤波"><input id="chkTel" type="checkbox" />8kHz窄带</label>
+        </div>
+        <div class="ctrl-row">
+          <button id="btnStart" class="primary" style="flex:1;">开始评测</button>
+          <button id="btnHumanTurn" class="warn" style="flex:1;" disabled title="预约下一回合暂停模拟用户 1 轮，启用本机麦克风进行人工接管，下一轮自动恢复">人工接管(1轮)</button>
+          <button id="btnHumanDone" class="ok" style="flex:1;display:none;">结束接管 → 恢复AI</button>
+          <button id="btnStop" class="danger" disabled>停止</button>
+        </div>
+      </div>
+
+      <div id="pane-live" class="body">
+        <div class="muted">点击上方「开始评测」即可实时对话。每条双向音频与客服 ASR 实识文本都会保留，支持边听边一键打分、点选缺陷标签；通话中可随时点「人工接管(1轮)」亲自说话并自动交回 AI。</div>
+      </div>
+
+      <div id="pane-review" class="body" style="display:none;">
+        <div class="muted">完成一次评测或从「历史记录」加载某次记录后，可在此直接播放完整录屏（MP4）、查看评分统计与高频缺陷汇总。</div>
+      </div>
+
+      <div id="pane-reports" class="body" style="display:none;">
+        <div id="repListWrap">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:6px;flex-wrap:wrap;">
+            <span class="muted">产物目录：<code>results/&lt;时间戳&gt;/</code>（含音频、MP4录屏、MD/CSV报告）</span>
+            <button id="btnRefreshRep">刷新列表</button>
+          </div>
+          <div id="repList" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+        <div id="repReaderWrap" class="md-reader-wrap">
+          <div class="md-reader-bar">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+              <button id="btnBackRep" type="button">← 返回历史列表</button>
+              <b id="mdTitle" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></b>
+            </div>
+            <div style="display:flex;gap:5px;">
+              <button id="btnToggleMdRaw" type="button">切换源码视图</button>
+              <button id="btnCopyMd" type="button" class="primary">复制 Markdown</button>
+            </div>
+          </div>
+          <div id="mdRendered" class="md-rendered"></div>
+          <pre id="mdView" class="md-view" style="display:none;"></pre>
+        </div>
+      </div>
+
+      <div id="pane-prompt" class="body" style="display:none;">
+        <div class="muted" style="margin-bottom:8px;">可在此维护模拟用户大模型的通用对话规范与当前场景角色设定，保存后即时生效。</div>
+        <label style="font-size:12px;font-weight:600;">通用对话与耐心值规范</label>
+        <textarea id="basePrompt" class="prompt-box" style="margin:4px 0 10px;"></textarea>
+        <label style="font-size:12px;font-weight:600;">当前场景角色设定</label>
+        <textarea id="scenePrompt" class="prompt-box" style="margin:4px 0 10px;"></textarea>
+        <button id="btnSavePrompt" class="primary">保存配置</button>
+      </div>
+
+      <div id="pane-settings" class="body" style="display:none;">
+        <div class="muted" style="margin-bottom:10px;">修改后实时生效并保存至本地 <code>.env</code>（已被 <code>.gitignore</code> 隔离）。</div>
+        <div class="field">
+          <label>API 提供商</label>
+          <select id="setProvider">
+            <option value="vertex">Vertex AI Express Mode（aiplatform.googleapis.com）</option>
+            <option value="gemini">Google AI Studio / Gemini API（generativelanguage.googleapis.com）</option>
+          </select>
+        </div>
+        <div class="field" id="wrapVertexKey">
+          <label>Vertex AI API Key</label>
+          <div style="display:flex;gap:6px;">
+            <input id="setVertexKey" type="password" placeholder="粘贴 Vertex AI API Key..." style="flex:1;" />
+            <button type="button" onclick="toggleKeyVis('setVertexKey', this)">显示</button>
+          </div>
+        </div>
+        <div class="field" id="wrapGeminiKey" style="display:none;">
+          <label>Gemini API Key（AI Studio）</label>
+          <div style="display:flex;gap:6px;">
+            <input id="setGeminiKey" type="password" placeholder="AIza..." style="flex:1;" />
+            <button type="button" onclick="toggleKeyVis('setGeminiKey', this)">显示</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>被测工作台 URL（TARGET_URL）</label>
+          <input id="setTargetUrl" type="text" placeholder="https://..." />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>模拟测试员对话模型（LLM）</label>
+            <select id="setCallerModel">
+              <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite（极速推荐）</option>
+              <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+              <option value="gemini-3.6-flash">gemini-3.6-flash</option>
+              <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>云端流式语音模型（TTS）</label>
+            <select id="setTtsModel">
+              <option value="gemini-3.8-flash-tts">gemini-3.8-flash-tts</option>
+              <option value="gemini-3.8-flash-lite-tts">gemini-3.8-flash-lite-tts（低延迟）</option>
+              <option value="gemini-3.1-flash-tts-preview">gemini-3.1-flash-tts-preview</option>
+              <option value="gemini-2.5-flash-preview-tts">gemini-2.5-flash-preview-tts</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>模拟用户音色</label>
+            <select id="setTtsVoice">
+              <option value="Kore">Kore（清晰自然）</option>
+              <option value="Puck">Puck（轻快口语）</option>
+              <option value="Charon">Charon（沉稳男声）</option>
+              <option value="Aoede">Aoede（柔和女声）</option>
+              <option value="Fenrir">Fenrir（低沉男声）</option>
+              <option value="Leda">Leda（知性女声）</option>
+            </select>
+          </div>
+          <div class="field" style="display:flex;align-items:flex-end;padding-bottom:4px;">
+            <label class="check-label" style="font-weight:600;color:var(--text);"><input id="setRandomize" type="checkbox" checked />每次评测随机抽选人设与暗坑</label>
+          </div>
+        </div>
+        <button id="btnSaveSettings" class="primary" style="width:100%;padding:7px;">保存设置并立即生效</button>
+      </div>
+
+      <div class="manual-note-bar">
+        <span style="font-size:11.5px;font-weight:700;color:#334155;white-space:nowrap;">人工总评：</span>
+        <input id="runNoteInput" type="text" placeholder="输入本场整体问题、补充观察或复现说明，回车或点击保存自动写入报告..." />
+        <button id="btnSaveRunNote" type="button" class="primary" style="padding:4px 10px;">保存总评</button>
+        <span id="runNoteStatus" class="save-tag"></span>
+      </div>
+      <div id="logBar" class="log-bar"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  let appCfg = null, curRunId = '', curScenarioId = '', curMd = '', tagPresets = [], tagSpecsMap = {};
+  let mode = 'click', fitMode = true, zoom = 1.0;
+  let panning = false, px = 0, py = 0, sl = 0, st = 0;
+  const reviewDrafts = {}; // key: `${runId}|${scId}|${turn}` -> { score, tags: Set, note }
+
+  function escHtml(s) {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function addLog(msg, level = 'info', ts = new Date().toLocaleTimeString()) {
+    const bar = $('logBar');
+    const d = document.createElement('div');
+    d.className = 'log-' + level;
+    d.textContent = `[${ts}] ${msg}`;
+    bar.appendChild(d);
+    while (bar.childElementCount > 300) bar.removeChild(bar.firstElementChild);
+    bar.scrollTop = bar.scrollHeight;
+  }
+
+  function closeMdReader() {
+    $('rightPane').classList.remove('md-fullscreen');
+    $('repReaderWrap').style.display = 'none';
+    $('repListWrap').style.display = 'block';
+  }
+  function switchTab(name) {
+    closeMdReader();
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    ['live', 'review', 'reports', 'prompt', 'settings'].forEach(k => $('pane-' + k).style.display = k === name ? 'block' : 'none');
+    if (name === 'reports') loadReports();
+  }
+  document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+
+  function setFit(on) {
+    fitMode = on;
+    $('stage').classList.toggle('fit-mode', on);
+    $('btnFit').classList.toggle('active', on);
+    if (on) { $('zoomTxt').textContent = '自适应'; $('mirrorCanvas').style.width = ''; }
+  }
+  $('btnFit').onclick = () => setFit(true);
+  $('zoomRange').oninput = e => {
+    setFit(false);
+    zoom = Number(e.target.value) / 100;
+    $('zoomTxt').textContent = e.target.value + '%';
+    const cvs = $('mirrorCanvas');
+    if (cvs.width) cvs.style.width = Math.round(cvs.width * zoom) + 'px';
+  };
+  function setMode(m) {
+    mode = m;
+    $('btnClick').classList.toggle('active', m === 'click');
+    $('btnPan').classList.toggle('active', m === 'pan');
+    $('stage').classList.toggle('click-mode', m === 'click');
+    $('stage').classList.toggle('pan-mode', m === 'pan');
+  }
+  $('btnClick').onclick = () => setMode('click');
+  $('btnPan').onclick = () => setMode('pan');
+
+  $('stage').addEventListener('mousedown', e => {
+    if (mode !== 'pan') return;
+    panning = true; px = e.clientX; py = e.clientY; sl = $('stage').scrollLeft; st = $('stage').scrollTop;
+  });
+  window.addEventListener('mousemove', e => {
+    if (!panning) return;
+    $('stage').scrollLeft = sl - (e.clientX - px);
+    $('stage').scrollTop = st - (e.clientY - py);
+  });
+  window.addEventListener('mouseup', () => panning = false);
+  $('mirrorCanvas').addEventListener('click', e => {
+    if (mode !== 'click') return;
+    const r = e.target.getBoundingClientRect();
+    window.appClickTarget && window.appClickTarget((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+  });
+  $('btnReload').onclick = () => window.appReloadTarget && window.appReloadTarget();
+  $('btnFocus').onclick = () => window.appFocusTarget && window.appFocusTarget();
+
+  let draggingSplit = false;
+  $('resizer').addEventListener('mousedown', () => { draggingSplit = true; $('resizer').classList.add('dragging'); });
+  window.addEventListener('mousemove', e => {
+    if (!draggingSplit) return;
+    $('leftPane').style.width = Math.min(75, Math.max(25, (e.clientX / window.innerWidth) * 100)) + '%';
+  });
+  window.addEventListener('mouseup', () => { draggingSplit = false; $('resizer').classList.remove('dragging'); });
+
+  function getDraft(runId, scId, turn, initEval) {
+    const key = `${runId}|${scId}|${turn}`;
+    if (!reviewDrafts[key]) {
+      const hr = initEval?.human_review || {};
+      reviewDrafts[key] = {
+        score: typeof hr.score === 'number' ? hr.score : null,
+        tags: new Set(Array.isArray(hr.tags) ? hr.tags : []),
+        note: hr.note || ''
+      };
+    }
+    return { key, d: reviewDrafts[key] };
+  }
+
+  async function commitReview(runId, scId, turn) {
+    const key = `${runId}|${scId}|${turn}`;
+    const d = reviewDrafts[key];
+    if (!d || !window.appSaveHumanReview) return;
+    const updated = await window.appSaveHumanReview(runId, scId, turn, {
+      score: d.score,
+      tags: [...d.tags],
+      note: d.note
+    });
+    const statusEl = document.getElementById(`save-${scId}-${turn}`);
+    if (statusEl) { statusEl.textContent = '已保存'; setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 1500); }
+    if (updated) renderReviewSummary(updated);
+  }
+
+  window.pickScore = async (runId, scId, turn, score) => {
+    const { d } = getDraft(runId, scId, turn);
+    d.score = score;
+    const box = document.getElementById(`rbox-${scId}-${turn}`);
+    if (box) {
+      box.querySelectorAll('.s-btn').forEach(btn => {
+        btn.classList.toggle('active', Number(btn.dataset.score) === score);
+      });
+    }
+    await commitReview(runId, scId, turn);
+  };
+
+
+  window.toggleTag = async (runId, scId, turn, tag, el) => {
+    const { d } = getDraft(runId, scId, turn);
+    if (d.tags.has(tag)) { d.tags.delete(tag); el.classList.remove('active'); }
+    else { d.tags.add(tag); el.classList.add('active'); }
+    await commitReview(runId, scId, turn);
+  };
+
+  window.updateNote = async (runId, scId, turn, val) => {
+    const { d } = getDraft(runId, scId, turn);
+    d.note = val;
+    await commitReview(runId, scId, turn);
+  };
+
+  function formatObjectiveMeta(ev) {
+    const db = ev?.audio_metrics?.maxVolumeDb != null ? `峰值 ${ev.audio_metrics.maxVolumeDb} dB` : '';
+    const flags = (ev?.objectiveFlags || []).length ? ` · <span style="color:var(--red)">${escHtml(ev.objectiveFlags.join(' / '))}</span>` : '';
+    return `${db}${flags}`;
+  }
+
+  function renderHumanReviewBox(runId, scId, turn, ev) {
+    const { d } = getDraft(runId, scId, turn, ev);
+    const scoreBtns = [1, 2, 3, 4, 5].map(n => {
+      const cls = n >= 4 ? 's-good' : (n <= 2 ? 's-bad' : '');
+      return `<button type="button" class="s-btn ${cls} ${d.score === n ? 'active' : ''}" data-score="${n}" onclick="pickScore('${runId}','${scId}',${turn},${n})">${n}分</button>`;
+    }).join('');
+    const chips = tagPresets.map(tg => {
+      const sp = tagSpecsMap[tg];
+      const tip = sp ? `[${sp.module}] ${sp.cause}` : '';
+      return `<span class="chip ${d.tags.has(tg) ? 'active' : ''}" title="${escHtml(tip)}" onclick="toggleTag('${runId}','${scId}',${turn},'${tg}',this)">${tg}</span>`;
+    }).join('');
+    return `
+      <div class="review-box" id="rbox-${scId}-${turn}">
+        <div class="score-row">
+          <span style="font-size:11.5px;font-weight:700;color:#334155;">人工评分：</span>
+          ${scoreBtns}
+          <span class="muted" id="tc-meta-${scId}-${turn}" style="margin-left:auto;">${formatObjectiveMeta(ev)}</span>
+        </div>
+        <div class="chip-wrap">${chips}</div>
+        <div class="note-row">
+          <input type="text" placeholder="输入本轮具体问题备注（如误读词/错漏信息），回车或失焦自动保存..." value="${escHtml(d.note)}"
+            onkeydown="if(event.key==='Enter'){this.blur();}"
+            onblur="updateNote('${runId}','${scId}',${turn},this.value)" />
+          <span class="save-tag" id="save-${scId}-${turn}"></span>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildCardHeadHtml(t) {
+    const modeTag = t.speakerMode === 'human' ? '<span class="pill" style="background:var(--yellow-bg);color:var(--yellow);">人工接管</span>' : '';
+    const pendingTag = t.pending ? '<span class="pill" style="background:#fef3c7;color:#92400e;">进行中 · 可提前标注</span>' : '';
+    const progTag = t.progress ? `<span class="pill">进度 ${escHtml(t.progress)}</span>` : '';
+    return `[${escHtml(t.scenarioId)}] 第 ${t.turn} 轮 · ${escHtml(t.name || '')} ${modeTag} ${pendingTag} ${progTag}`;
+  }
+
+  function renderTurnCard(t) {
+    const scId = t.scenarioId, turn = t.turn;
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.id = `tcard-${scId}-${turn}`;
+    const uContent = t.userText
+      ? `<b>${t.speakerMode === 'human' ? '人工发话' : '模拟用户发送'}：</b>${escHtml(t.userText)}${t.userAudioSrc ? `<audio controls src="${t.userAudioSrc}"></audio>` : ''}`
+      : (t.pending && turn > 0 ? `<span class="muted">${t.speakerMode === 'human' ? '请对着麦克风说话，说完点击「结束接管 → 恢复AI」...' : '正在生成模拟用户话术...'}</span>` : '');
+    const asrContent = t.pending
+      ? '<b>客服 ASR 实识：</b><span class="muted">等待采集...</span>'
+      : `<b>客服 ASR 实识：</b>${escHtml(t.userAsrText || '（页面未显示或未捕获）')}`;
+    const aContent = t.pending
+      ? '<b>被测语音助手：</b><span class="muted">等待回复与录音...</span>'
+      : `<b>被测语音助手：</b>${escHtml(t.aiText || '（请试听录音）')}${t.aiAudioSrc ? `<audio controls src="${t.aiAudioSrc}"></audio>` : ''}`;
+    div.innerHTML = `
+      <div class="card-head">
+        <span id="tc-head-${scId}-${turn}">${buildCardHeadHtml(t)}</span>
+        <span id="tc-ttfb-${scId}-${turn}" style="color:var(--accent)">TTFB: ${t.ttfbMs != null ? t.ttfbMs + ' ms' : '-'}</span>
+      </div>
+      <div id="tc-u-${scId}-${turn}" class="bubble u" style="${uContent ? '' : 'display:none;'}">${uContent}</div>
+      ${turn > 0 ? `<div id="tc-asr-${scId}-${turn}" class="bubble asr">${asrContent}</div>` : ''}
+      <div id="tc-a-${scId}-${turn}" class="bubble a">${aContent}</div>
+      ${renderHumanReviewBox(t.runId || curRunId, scId, turn, t.eval)}
+    `;
+    return div;
+  }
+
+  // 原位更新已提前放出的卡片，不重建人工评分框，确保通话中已勾选的分数、标签与输入焦点不丢失
+  function upsertTurnCard(t) {
+    const scId = t.scenarioId, turn = t.turn;
+    const existing = document.getElementById(`tcard-${scId}-${turn}`);
+    if (!existing) {
+      $('pane-live').appendChild(renderTurnCard(t));
+      $('pane-live').scrollTop = $('pane-live').scrollHeight;
+      return;
+    }
+    const headEl = document.getElementById(`tc-head-${scId}-${turn}`);
+    if (headEl) headEl.innerHTML = buildCardHeadHtml(t);
+    const ttfbEl = document.getElementById(`tc-ttfb-${scId}-${turn}`);
+    if (ttfbEl) ttfbEl.textContent = `TTFB: ${t.ttfbMs != null ? t.ttfbMs + ' ms' : '-'}`;
+    const uEl = document.getElementById(`tc-u-${scId}-${turn}`);
+    if (uEl && t.userText) {
+      uEl.style.display = '';
+      uEl.innerHTML = `<b>${t.speakerMode === 'human' ? '人工发话' : '模拟用户发送'}：</b>${escHtml(t.userText)}${t.userAudioSrc ? `<audio controls src="${t.userAudioSrc}"></audio>` : ''}`;
+    }
+    if (!t.pending) {
+      const asrEl = document.getElementById(`tc-asr-${scId}-${turn}`);
+      if (asrEl) asrEl.innerHTML = `<b>客服 ASR 实识：</b>${escHtml(t.userAsrText || '（页面未显示或未捕获）')}`;
+      const aEl = document.getElementById(`tc-a-${scId}-${turn}`);
+      if (aEl) aEl.innerHTML = `<b>被测语音助手：</b>${escHtml(t.aiText || '（请试听录音）')}${t.aiAudioSrc ? `<audio controls src="${t.aiAudioSrc}"></audio>` : ''}`;
+      const metaEl = document.getElementById(`tc-meta-${scId}-${turn}`);
+      if (metaEl) metaEl.innerHTML = formatObjectiveMeta(t.eval);
+    }
+  }
+
+  function renderReviewSummary(data) {
+    if (!data) return;
+    curRunId = data.runId;
+    let html = '';
+    for (const sc of data.scenarios || []) {
+      const s = sc.summary;
+      if (!s) continue;
+      const tags = Object.entries(s.tag_counts || {}).sort((a, b) => b[1] - a[1]);
+      const tagHtml = tags.length
+        ? tags.map(([k, v]) => `<span class="chip active" style="cursor:default;">${escHtml(k)} × ${v}</span>`).join(' ')
+        : '<span class="muted">暂无标记缺陷</span>';
+      html += `
+        <div class="card">
+          <div class="card-head">
+            <span>${escHtml(s.agent_name)}（${escHtml(sc.id)}）</span>
+            <button onclick="viewMd('${data.runId}')">查看结构化报告 (MD)</button>
+          </div>
+          <div class="score-grid">
+            <div class="kpi"><div class="v">${s.avg5 ?? '-'}</div><div class="l">人工均分(5分制)</div></div>
+            <div class="kpi"><div class="v">${s.reviewed_count}/${s.total_turns}</div><div class="l">已评/总轮次</div></div>
+            <div class="kpi"><div class="v" style="color:var(--red)">${s.issue_count}</div><div class="l">问题轮次</div></div>
+          </div>
+          <div style="margin-bottom:8px;"><b>高频问题统计：</b><div class="chip-wrap" style="margin-top:4px;">${tagHtml}</div></div>
+          ${sc.raw?.session_video_src ? `<div><b>本场完整录屏（MP4，含音频）：</b><video controls src="${sc.raw.session_video_src}"></video></div>` : '<div class="muted">本场未生成 MP4 录屏。</div>'}
+          ${sc.raw?.full_ai_audio_src ? `<div style="margin-top:8px;"><b>整场客服音频：</b><audio controls src="${sc.raw.full_ai_audio_src}"></audio></div>` : ''}
+        </div>
+      `;
+    }
+    $('pane-review').innerHTML = html || '<div class="muted">暂无数据。</div>';
+  }
+
+  async function loadReports() {
+    if (!window.appListReports) return;
+    const list = await window.appListReports();
+    if (!list.length) { $('repList').innerHTML = '<div class="muted">暂无历史评测记录。</div>'; return; }
+    $('repList').innerHTML = list.map(r => `
+      <div class="report-row">
+        <div><b>${r.runId}</b> <span class="muted">${(r.scenarios || []).join(', ')}${r.hasVideo ? ' · 含录屏' : ''}</span></div>
+        <div style="display:flex;gap:5px;">
+          <button class="${r.hasMd ? 'primary' : ''}" onclick="viewMd('${r.runId}')">查看报告</button>
+          <button onclick="openRun('${r.runId}')">打开评分与录屏</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  let showMdRaw = false;
+  function renderMarkdownHtml(md) {
+    const inline = s => escHtml(s)
+      .replace(/&lt;br\s*\/?&gt;/gi, '<br>')
+      .replace(/&lt;b&gt;(.+?)&lt;\/b&gt;/gi, '<b>$1</b>')
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
+    const lines = String(md || '').split(/\r?\n/);
+    let html = '', inUl = false, inTable = false;
+    const closeLists = () => { if (inUl) { html += '</ul>'; inUl = false; } };
+    const closeTable = () => { if (inTable) { html += '</tbody></table>'; inTable = false; } };
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^\|.*\|$/.test(line.trim())) {
+        closeLists();
+        const cells = line.trim().slice(1, -1).split('|').map(c => c.trim());
+        if (!inTable) {
+          html += '<table><thead><tr>' + cells.map(c => `<th>${inline(c)}</th>`).join('') + '</tr></thead><tbody>';
+          inTable = true;
+          if (i + 1 < lines.length && /^\|[\s:|-]+\|$/.test(lines[i + 1].trim())) i++;
+        } else {
+          html += '<tr>' + cells.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>';
+        }
+        continue;
+      }
+      closeTable();
+      if (/^###\s+/.test(line)) { closeLists(); html += `<h3>${inline(line.replace(/^###\s+/, ''))}</h3>`; }
+      else if (/^##\s+/.test(line)) { closeLists(); html += `<h2>${inline(line.replace(/^##\s+/, ''))}</h2>`; }
+      else if (/^#\s+/.test(line)) { closeLists(); html += `<h1>${inline(line.replace(/^#\s+/, ''))}</h1>`; }
+      else if (/^[-*]\s+/.test(line)) {
+        if (!inUl) { html += '<ul>'; inUl = true; }
+        html += `<li>${inline(line.replace(/^[-*]\s+/, ''))}</li>`;
+      } else if (line.trim() === '') {
+        closeLists();
+      } else {
+        closeLists();
+        html += `<p style="margin:5px 0;">${inline(line)}</p>`;
+      }
+    }
+    closeLists(); closeTable();
+    return html;
+  }
+
+  function syncMdView() {
+    $('mdRendered').style.display = showMdRaw ? 'none' : 'block';
+    $('mdView').style.display = showMdRaw ? 'block' : 'none';
+    $('btnToggleMdRaw').textContent = showMdRaw ? '切换渲染视图' : '切换源码视图';
+  }
+  $('btnToggleMdRaw').onclick = () => { showMdRaw = !showMdRaw; syncMdView(); };
+  $('btnBackRep').onclick = closeMdReader;
+
+  window.viewMd = async (runId) => {
+    switchTab('reports');
+    const r = await window.appGetMarkdownReport(runId);
+    $('rightPane').classList.add('md-fullscreen');
+    $('repListWrap').style.display = 'none';
+    $('repReaderWrap').style.display = 'flex';
+    $('mdTitle').textContent = `评测报告 · ${runId}`;
+    if (!r.exists) {
+      $('mdRendered').style.display = 'none';
+      $('mdView').style.display = 'block';
+      $('mdView').textContent = '该次记录暂未生成 Markdown 报告。';
+      $('btnCopyMd').style.display = 'none';
+      $('btnToggleMdRaw').style.display = 'none';
+      return;
+    }
+    curRunId = runId; curMd = r.content; showMdRaw = false;
+    $('mdRendered').innerHTML = renderMarkdownHtml(r.content);
+    $('mdView').textContent = r.content;
+    $('btnCopyMd').style.display = 'inline-block';
+    $('btnToggleMdRaw').style.display = 'inline-block';
+    syncMdView();
+  };
+
+  window.openRun = async (runId) => {
+    const data = await window.appLoadRun(runId);
+    if (!data) return;
+    curRunId = runId;
+    $('pane-live').innerHTML = '';
+    for (const sc of data.scenarios || []) {
+      curScenarioId = sc.id;
+      $('runNoteInput').value = sc.raw?.run_note || '';
+      if (sc.raw?.greeting) {
+        $('pane-live').appendChild(renderTurnCard({
+          runId, scenarioId: sc.id, turn: 0, speakerMode: 'ai', name: '开场白',
+          aiText: sc.raw.greeting.text_delta, ttfbMs: sc.raw.greeting.ttfbMs,
+          aiAudioSrc: sc.raw.greeting.audio_src, eval: sc.raw.greeting.eval
+        }));
+      }
+      for (const t of sc.raw?.turns || []) {
+        $('pane-live').appendChild(renderTurnCard({
+          runId, scenarioId: sc.id, turn: t.turn, speakerMode: t.speaker_mode || 'ai', name: t.name, patience: t.patience,
+          userText: t.user_text, userAsrText: t.user_asr_text, userAudioSrc: t.user_audio_src,
+          aiText: t.ai_text_delta, ttfbMs: t.ai_metrics?.ttfbMs, aiAudioSrc: t.ai_audio_src, eval: t.eval
+        }));
+      }
+    }
+    renderReviewSummary(data);
+    switchTab('live');
+  };
+
+  $('btnRefreshRep').onclick = loadReports;
+  $('btnCopyMd').onclick = async () => {
+    if (!curMd) return;
+    await navigator.clipboard.writeText(curMd).catch(() => {});
+    addLog('已复制 Markdown 报告至剪贴板');
+  };
+
+  function syncPrompt() {
+    if (!appCfg) return;
+    $('basePrompt').value = appCfg.base_caller_system_prompt || '';
+    const sc = appCfg.scenarios.find(s => s.id === $('scSelect').value) || appCfg.scenarios[0];
+    $('scenePrompt').value = sc?.scenario_persona_prompt || '';
+  }
+  $('scSelect').onchange = syncPrompt;
+  $('btnSavePrompt').onclick = async () => {
+    if (!window.appSavePrompts) return;
+    appCfg = await window.appSavePrompts($('basePrompt').value, $('scSelect').value, $('scenePrompt').value);
+    addLog('模拟用户提示词配置已保存');
+  };
+
+  async function submitRunNote() {
+    if (!curRunId || !curScenarioId || !window.appSaveRunNote) {
+      addLog('请先开始评测或加载一条历史记录后再保存本场总评', 'warn');
+      return;
+    }
+    const updated = await window.appSaveRunNote(curRunId, curScenarioId, $('runNoteInput').value);
+    $('runNoteStatus').textContent = '已保存';
+    setTimeout(() => { $('runNoteStatus').textContent = ''; }, 1500);
+    if (updated) renderReviewSummary(updated);
+  }
+  $('btnSaveRunNote').onclick = submitRunNote;
+  $('runNoteInput').addEventListener('keydown', e => { if (e.key === 'Enter') submitRunNote(); });
+
+  $('btnStart').onclick = async () => {
+    $('pane-live').innerHTML = '';
+    $('runNoteInput').value = '';
+    $('btnStart').disabled = true;
+    $('btnHumanTurn').disabled = false;
+    $('btnStop').disabled = false;
+    $('btnSaveVideo').disabled = true;
+    $('btnSaveVideo').textContent = '保存完整录屏';
+    switchTab('live');
+    window.appStartScenario && window.appStartScenario($('scSelect').value, {
+      maxTurnsCap: Number($('maxTurns').value || 12),
+      telephonyFilter: $('chkTel').checked
+    });
+  };
+  // 预约下一回合人工接管，并立即更新按钮状态反馈
+  $('btnHumanTurn').onclick = async () => {
+    if (!window.appRequestHumanTakeover) return;
+    const ok = await window.appRequestHumanTakeover();
+    if (ok) {
+      $('btnHumanTurn').disabled = true;
+      $('btnHumanTurn').textContent = '已预约下轮接管';
+    }
+  };
+  $('btnHumanDone').onclick = () => {
+    window.appFinishHumanTurn && window.appFinishHumanTurn();
+  };
+  $('btnStop').onclick = () => window.appStopScenario && window.appStopScenario();
+  $('btnSaveVideo').onclick = async () => {
+    if (!window.appSaveLastRecording) return;
+    $('btnSaveVideo').disabled = true;
+    $('btnSaveVideo').textContent = '正在合成MP4...';
+    const res = await window.appSaveLastRecording();
+    if (res?.ok) {
+      $('btnSaveVideo').textContent = '录屏已保存';
+      if (res.data) renderReviewSummary(res.data);
+    } else {
+      $('btnSaveVideo').textContent = '保存完整录屏';
+      if (res?.msg) addLog(res.msg, 'warn');
+    }
+  };
+  $('btnOpenDir').onclick = () => window.appOpenResultsFolder && window.appOpenResultsFolder(curRunId);
+
+  window.__onAppEvent = (type, payload) => {
+    if (type === 'log') addLog(payload.msg, payload.level, payload.ts);
+    if (type === 'recording_ready') {
+      $('btnSaveVideo').disabled = false;
+      $('btnSaveVideo').textContent = '保存完整录屏';
+    }
+    if (type === 'frame') {
+      const next = new Image();
+      next.onload = () => {
+        const cvs = $('mirrorCanvas');
+        if (cvs.width !== next.naturalWidth || cvs.height !== next.naturalHeight) {
+          cvs.width = next.naturalWidth;
+          cvs.height = next.naturalHeight;
+        }
+        cvs.getContext('2d').drawImage(next, 0, 0);
+        cvs.style.display = 'block';
+        if (!fitMode) cvs.style.width = Math.round(cvs.width * zoom) + 'px';
+        $('stageEmpty').style.display = 'none';
+      };
+      next.src = payload.img;
+      $('urlTxt').textContent = payload.url || '';
+    }
+    if (type === 'human_turn_state') {
+      $('btnHumanTurn').style.display = payload.active ? 'none' : 'inline-block';
+      $('btnHumanTurn').disabled = payload.active;
+      $('btnHumanTurn').textContent = '人工接管(1轮)';
+      $('btnHumanDone').style.display = payload.active ? 'inline-block' : 'none';
+    }
+    if (type === 'turn_started') {
+      curRunId = payload.runId || curRunId;
+      curScenarioId = payload.scenarioId || curScenarioId;
+      upsertTurnCard({ ...payload, pending: true });
+    }
+    if (type === 'turn_user_ready') {
+      curRunId = payload.runId || curRunId;
+      curScenarioId = payload.scenarioId || curScenarioId;
+      upsertTurnCard({ ...payload, pending: true });
+    }
+    if (type === 'turn_cancelled') {
+      const el = document.getElementById(`tcard-${payload.scenarioId}-${payload.turn}`);
+      if (el) el.remove();
+    }
+    if (type === 'turn_update') {
+      curRunId = payload.runId || curRunId;
+      curScenarioId = payload.scenarioId || curScenarioId;
+      upsertTurnCard({ ...payload, pending: false });
+    }
+    if (type === 'run_completed' || type === 'run_stopped') {
+      $('btnStart').disabled = false;
+      $('btnHumanTurn').disabled = true;
+      $('btnHumanTurn').textContent = '人工接管(1轮)';
+      $('btnHumanTurn').style.display = 'inline-block';
+      $('btnHumanDone').style.display = 'none';
+      $('btnStop').disabled = true;
+      if (payload?.data) renderReviewSummary(payload.data);
+    }
+    if (type === 'run_error') {
+      $('btnStart').disabled = false;
+      $('btnHumanTurn').disabled = true;
+      $('btnHumanTurn').textContent = '人工接管(1轮)';
+      $('btnHumanDone').style.display = 'none';
+      $('btnStop').disabled = true;
+    }
+  };
+
+  window.toggleKeyVis = (id, btn) => {
+    const el = $(id);
+    const isPwd = el.type === 'password';
+    el.type = isPwd ? 'text' : 'password';
+    btn.textContent = isPwd ? '隐藏' : '显示';
+  };
+
+  function syncProviderFields() {
+    const p = $('setProvider').value;
+    $('wrapVertexKey').style.display = p === 'vertex' ? 'block' : 'none';
+    $('wrapGeminiKey').style.display = p === 'gemini' ? 'block' : 'none';
+  }
+  $('setProvider').onchange = syncProviderFields;
+
+  function fillSettingsForm(st) {
+    if (!st) return;
+    $('setProvider').value = st.provider || 'vertex';
+    $('setVertexKey').value = st.vertexApiKey || '';
+    $('setGeminiKey').value = st.geminiApiKey || '';
+    $('setTargetUrl').value = st.targetUrl || '';
+    $('setCallerModel').value = st.callerModel || 'gemini-3.5-flash-lite';
+    $('setTtsModel').value = st.ttsModel || 'gemini-3.8-flash-tts';
+    $('setTtsVoice').value = st.ttsVoice || 'Kore';
+    $('setRandomize').checked = st.randomizeScenario !== false;
+    $('modelPill').textContent = `对话 ${st.callerModel} · 语音 ${st.ttsModel} · 人工评分`;
+    syncProviderFields();
+  }
+
+  $('btnSaveSettings').onclick = async () => {
+    if (!window.appSaveSettings) return;
+    const saved = await window.appSaveSettings({
+      provider: $('setProvider').value,
+      vertexApiKey: $('setVertexKey').value,
+      geminiApiKey: $('setGeminiKey').value,
+      targetUrl: $('setTargetUrl').value,
+      callerModel: $('setCallerModel').value,
+      ttsModel: $('setTtsModel').value,
+      ttsVoice: $('setTtsVoice').value,
+      randomizeScenario: $('setRandomize').checked
+    });
+    fillSettingsForm(saved);
+  };
+
+  window.addEventListener('DOMContentLoaded', async () => {
+    if (!window.appGetInitData) return;
+    const init = await window.appGetInitData();
+    appCfg = init.cfg;
+    tagPresets = init.issueTagPresets || [];
+    tagSpecsMap = Object.fromEntries((init.issueTagSpecs || []).map(s => [s.tag, s]));
+    fillSettingsForm(init.settings || { callerModel: init.llmModel, ttsModel: init.ttsModel, targetUrl: init.targetUrl });
+    $('scSelect').innerHTML = appCfg.scenarios.map(s => `<option value="${s.id}">${s.agent_name}（${s.id}）</option>`).join('') + '<option value="all">全部场景连续评测</option>';
+    syncPrompt();
+  });
+</script>
+</body>
+</html>

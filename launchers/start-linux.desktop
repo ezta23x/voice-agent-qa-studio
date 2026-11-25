@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Voice Agent QA Studio
+Comment=Voice Agent Automated Call & Multimodal Evaluation Studio
+Exec=bash -lc 'cd "$(dirname "%k")/.." && bash launchers/start-macos.command'
+Terminal=true
+Categories=Development;Utility;
