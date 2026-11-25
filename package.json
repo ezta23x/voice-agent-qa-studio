@@ -1,7 +1,7 @@
 {
   "name": "voice-agent-qa-studio",
-  "version": "1.1.0",
-  "description": "First-principles, low-effort Voice Agent QA & Multimodal Audio Evaluation Studio powered by Gemini Flash",
+  "version": "1.2.0",
+  "description": "Desktop automated call testing and human QA workbench for WebRTC Voice Agents",
   "type": "module",
   "private": true,
   "scripts": {

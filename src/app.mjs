@@ -1085,10 +1085,10 @@ async function runScenarioBatch(scenarioId, { maxTurnsCap = 12, telephonyFilter 
     buildRunReport(runRoot);
     if (abortRequested) {
       emitUi('run_stopped', { runId, data: loadRunData(runId), reports: listReportsMeta() });
-      log('已停止当前评测，已录制的音频、录屏与结构化文件已保存，可直接人工评分。', 'warn');
+      log('已停止当前评测，音频与结构化报告已保存；如需视频证据可点击顶栏「保存完整录屏」。', 'warn');
     } else {
       emitUi('run_completed', { runId, data: loadRunData(runId), reports: listReportsMeta() });
-      log(`通话已完成，完整录屏与音频已保存至 results/${runId}/，请前往「人工评分工作台」快速打分。`);
+      log(`通话已完成，音频与报告已保存至 results/${runId}/；如需留存视频可点击顶栏「保存完整录屏」。`);
     }
   } catch (e) {
     if (abortRequested) {
@@ -1298,6 +1298,6 @@ async function runScenarioBatch(scenarioId, { maxTurnsCap = 12, telephonyFilter 
     }
   })();
 
-  log('Voice Agent QA Studio 已就绪（纯人工快速评分 + 1轮人工插话 + ASR实识抓取 + 完整录屏归档）。');
+  log('Voice Agent QA Studio 已就绪（人工快速评分 + 1轮人工接管 + ASR实识对照 + 按需保存录屏）。');
   uiPage.on('close', () => { mirrorStopped = true; clearLastScreenDraft(); context.close().catch(() => {}); });
 })();
